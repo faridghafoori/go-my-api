@@ -126,7 +126,7 @@ func Logout() gin.HandlerFunc {
 				responses.GeneralResponse{
 					Status:  http.StatusUnprocessableEntity,
 					Message: utils.ErrorMessage,
-					Data:    err.Error(),
+					Data:    err,
 				},
 			)
 			return
@@ -272,7 +272,7 @@ func Refresh() gin.HandlerFunc {
 
 func CreateToken(userId string) (*models.TokenDetails, error) {
 	td := &models.TokenDetails{}
-	td.AtExpires = time.Now().Add(time.Minute * 15).Unix()
+	td.AtExpires = time.Now().Add(time.Hour * 1).Unix()
 	td.AccessUuid = uuid.NewV4().String()
 
 	td.RtExpires = time.Now().Add(time.Hour * 24 * 7).Unix()

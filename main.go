@@ -17,8 +17,10 @@ func main() {
 	configs.InitRedis()
 
 	//routes
-	routes.UserRoutes(router)
 	routes.AuthenticationRoutes(router)
+	routes.UserRoutes(router)
+	routes.EpisodeRoutes(router)
+	routes.IORoutes(router)
 
 	router.Run("localhost:6000")
 }

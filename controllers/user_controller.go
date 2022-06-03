@@ -290,6 +290,7 @@ func GetAllUsers() gin.HandlerFunc {
 						Data:    err.Error(),
 					},
 				)
+				return
 			}
 
 			users = append(users, singleUser)
