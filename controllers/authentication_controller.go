@@ -2,10 +2,10 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"gin-mongo-api/configs"
 	"gin-mongo-api/models"
-	"gin-mongo-api/responses"
 	"gin-mongo-api/utils"
 	"net/http"
 	"strings"
@@ -23,139 +23,64 @@ func Authenticate() gin.HandlerFunc {
 		defer cancel()
 
 		var inputUser models.Authentication
-		if err := c.BindJSON(&inputUser); err != nil {
-			c.JSON(
-				http.StatusUnprocessableEntity,
-				responses.GeneralResponse{
-					Status:  http.StatusUnprocessableEntity,
-					Message: utils.ErrorMessage,
-					Data:    err.Error(),
-				},
-			)
-			return
-		}
+		bindError := c.BindJSON(&inputUser)
+		utils.GenerateErrorOutput(http.StatusUnprocessableEntity, bindError, c)
 
 		//use the validator library to validate required fields
 		utils.ValidateStruct(&inputUser)
 
 		var user models.User
-		err := userCollection.FindOne(ctx, bson.M{"username": inputUser.Username}).Decode(&user)
-		if err != nil {
-			c.JSON(
-				http.StatusInternalServerError,
-				responses.GeneralResponse{
-					Status:  http.StatusInternalServerError,
-					Message: utils.ErrorMessage,
-					Data:    err.Error(),
-				},
-			)
-			return
-		}
+		findError := userCollection.FindOne(ctx, bson.M{"username": inputUser.Username}).Decode(&user)
+		utils.GenerateErrorOutput(http.StatusBadRequest, findError, c)
 
 		inputUser.Password = utils.GetMD5Hash(inputUser.Password)
 		if user.Username != inputUser.Username || user.Password != inputUser.Password {
-			c.JSON(
+			utils.GenerateErrorOutput(
 				http.StatusUnauthorized,
-				responses.GeneralResponse{
-					Status:  http.StatusUnauthorized,
-					Message: "Invalid Username or Password",
-					Data:    "Please provide valid login details",
+				errors.New(""),
+				c,
+				map[string]interface{}{
+					"message": "Invalid Username or Password",
+					"data":    "Please provide valid login details",
 				},
 			)
-			return
 		}
 
 		ts, err := CreateToken(user.Id.Hex())
-		if err != nil {
-			c.JSON(
-				http.StatusUnprocessableEntity,
-				responses.GeneralResponse{
-					Status:  http.StatusUnprocessableEntity,
-					Message: utils.ErrorMessage,
-					Data:    err.Error(),
-				},
-			)
-		}
+		utils.GenerateErrorOutput(http.StatusUnprocessableEntity, err, c)
 
 		saveErr := CreateAuth(user.Id.Hex(), ts)
-		if saveErr != nil {
-			c.JSON(
-				http.StatusUnprocessableEntity,
-				responses.GeneralResponse{
-					Status:  http.StatusUnprocessableEntity,
-					Message: utils.ErrorMessage,
-					Data:    err.Error(),
-				},
-			)
-		}
+		utils.GenerateErrorOutput(http.StatusUnprocessableEntity, saveErr, c)
 
 		tokens := map[string]string{
 			"access_token":  ts.AccessToken,
 			"refresh_token": ts.RefreshToken,
 		}
 
-		c.JSON(
-			http.StatusOK,
-			responses.GeneralResponse{
-				Status:  http.StatusOK,
-				Message: utils.SuccessMessage,
-				Data:    tokens,
-			},
-		)
+		utils.GenerateSuccessOutput(tokens, c)
 	}
 }
 
 func Logout() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		au, err := ExtractTokenMetadata(c.Request)
-		if err != nil {
-			c.JSON(
-				http.StatusUnprocessableEntity,
-				responses.GeneralResponse{
-					Status:  http.StatusUnprocessableEntity,
-					Message: utils.ErrorMessage,
-					Data:    err.Error(),
-				},
-			)
-			return
-		}
+		utils.GenerateErrorOutput(http.StatusUnprocessableEntity, err, c)
+
 		deleted, delErr := DeleteAuth(au.AccessUuid)
 		if delErr != nil || deleted == 0 { //if any goes wrong
-			c.JSON(
-				http.StatusUnprocessableEntity,
-				responses.GeneralResponse{
-					Status:  http.StatusUnprocessableEntity,
-					Message: utils.ErrorMessage,
-					Data:    err,
-				},
-			)
-			return
+			utils.GenerateErrorOutput(http.StatusUnprocessableEntity, delErr, c)
 		}
-		c.JSON(
-			http.StatusOK,
-			responses.GeneralResponse{
-				Status:  http.StatusOK,
-				Message: utils.SuccessMessage,
-				Data:    "Successfully logged out",
-			},
-		)
+
+		utils.GenerateSuccessOutput("Successfully logged out", c)
 	}
 }
 
 func Refresh() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		mapToken := map[string]string{}
-		if err := c.ShouldBindJSON(&mapToken); err != nil {
-			c.JSON(
-				http.StatusUnprocessableEntity,
-				responses.GeneralResponse{
-					Status:  http.StatusUnprocessableEntity,
-					Message: utils.ErrorMessage,
-					Data:    err.Error(),
-				},
-			)
-			return
-		}
+		bindErr := c.ShouldBindJSON(&mapToken)
+		utils.GenerateErrorOutput(http.StatusUnprocessableEntity, bindErr, c)
+
 		refreshToken := mapToken["refresh_token"]
 
 		//verify the token
@@ -167,103 +92,79 @@ func Refresh() gin.HandlerFunc {
 			return []byte(configs.EnvJWTRefreshSecret()), nil
 		})
 		//if there is an error, the token must have expired
-		if err != nil {
-			c.JSON(
-				http.StatusUnauthorized,
-				responses.GeneralResponse{
-					Status:  http.StatusUnauthorized,
-					Message: utils.ErrorMessage,
-					Data:    "Refresh token expired",
-				},
-			)
-			return
-		}
+		utils.GenerateErrorOutput(
+			http.StatusUnauthorized,
+			bindErr,
+			c,
+			map[string]interface{}{
+				"data": "Refresh token expired",
+			},
+		)
+
 		//is token valid?
-		if _, ok := token.Claims.(jwt.Claims); !ok && !token.Valid {
-			c.JSON(
-				http.StatusUnauthorized,
-				responses.GeneralResponse{
-					Status:  http.StatusUnauthorized,
-					Message: utils.ErrorMessage,
-					Data:    err.Error(),
-				},
-			)
-			return
-		}
+		validError := token.Claims.Valid()
+		utils.GenerateErrorOutput(http.StatusUnauthorized, validError, c)
+
 		//Since token is valid, get the uuid:
 		claims, ok := token.Claims.(jwt.MapClaims) //the token claims should conform to MapClaims
 		if ok && token.Valid {
 			refreshUuid, ok := claims["refresh_uuid"].(string) //convert the interface to string
 			if !ok {
-				c.JSON(
+				utils.GenerateErrorOutput(
 					http.StatusUnprocessableEntity,
-					responses.GeneralResponse{
-						Status:  http.StatusUnprocessableEntity,
-						Message: utils.ErrorMessage,
-						Data:    err.Error(),
-					},
+					errors.New("token claims maybe damaged"),
+					c,
 				)
-				return
 			}
 			userId := claims["sub"]
 			//Delete the previous Refresh Token
 			deleted, delErr := DeleteAuth(refreshUuid)
 			if delErr != nil || deleted == 0 { //if any goes wrong
-				c.JSON(
+				utils.GenerateErrorOutput(
 					http.StatusUnauthorized,
-					responses.GeneralResponse{
-						Status:  http.StatusUnauthorized,
-						Message: utils.UnauthorizedMessage,
-						Data:    err,
+					err,
+					c,
+					map[string]interface{}{
+						"data":    err,
+						"message": utils.UnauthorizedMessage,
 					},
 				)
-				return
 			}
 			//Create new pairs of refresh and access tokens
 			ts, createErr := CreateToken(userId.(string))
-			if createErr != nil {
-				c.JSON(
-					http.StatusForbidden,
-					responses.GeneralResponse{
-						Status:  http.StatusForbidden,
-						Message: utils.ForbidenMessage,
-						Data:    createErr.Error(),
-					},
-				)
-				return
-			}
+			utils.GenerateErrorOutput(
+				http.StatusForbidden,
+				createErr,
+				c,
+				map[string]interface{}{
+					"message": utils.ForbidenMessage,
+				},
+			)
 			//save the tokens metadata to redis
 			saveErr := CreateAuth(userId.(string), ts)
-			if saveErr != nil {
-				c.JSON(
-					http.StatusForbidden,
-					responses.GeneralResponse{
-						Status:  http.StatusForbidden,
-						Message: utils.ForbidenMessage,
-						Data:    createErr.Error(),
-					},
-				)
-				return
-			}
+			utils.GenerateErrorOutput(
+				http.StatusForbidden,
+				saveErr,
+				c,
+				map[string]interface{}{
+					"message": utils.ForbidenMessage,
+				},
+			)
+
 			tokens := map[string]string{
 				"access_token":  ts.AccessToken,
 				"refresh_token": ts.RefreshToken,
 			}
-			c.JSON(
-				http.StatusCreated,
-				responses.GeneralResponse{
-					Status:  http.StatusCreated,
-					Message: utils.SuccessMessage,
-					Data:    tokens,
-				},
-			)
+
+			utils.GenerateSuccessOutput(tokens, c)
 		} else {
-			c.JSON(
+			utils.GenerateErrorOutput(
 				http.StatusUnauthorized,
-				responses.GeneralResponse{
-					Status:  http.StatusUnauthorized,
-					Message: utils.UnauthorizedMessage,
-					Data:    "refresh expired",
+				errors.New(""),
+				c,
+				map[string]interface{}{
+					"message": utils.UnauthorizedMessage,
+					"data":    "Refresh expired",
 				},
 			)
 		}
@@ -354,7 +255,8 @@ func TokenValid(r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	if _, ok := token.Claims.(jwt.Claims); !ok && !token.Valid {
+	_, ok := token.Claims.(jwt.MapClaims)
+	if !ok && !token.Valid {
 		return err
 	}
 	return nil
@@ -402,15 +304,16 @@ func DeleteAuth(givenUuid string) (int64, error) {
 func TokenAuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		err := TokenValid(c.Request)
+		utils.GenerateErrorOutput(
+			http.StatusUnauthorized,
+			err,
+			c,
+			map[string]interface{}{
+				"message": utils.UnauthorizedMessage,
+				"data":    "Access token expired",
+			},
+		)
 		if err != nil {
-			c.JSON(
-				http.StatusUnauthorized,
-				responses.GeneralResponse{
-					Status:  http.StatusUnauthorized,
-					Message: utils.UnauthorizedMessage,
-					Data:    err.Error(),
-				},
-			)
 			c.Abort()
 			return
 		}

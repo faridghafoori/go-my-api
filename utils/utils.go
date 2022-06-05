@@ -3,7 +3,6 @@ package utils
 import (
 	"crypto/md5"
 	"encoding/hex"
-	"gin-mongo-api/responses"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -19,17 +18,7 @@ func GetMD5Hash(text string) string {
 
 func ValidateStruct(model interface{}) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if validationErr := validate.Struct(&model); validationErr != nil {
-			c.JSON(
-				http.StatusBadRequest,
-				responses.GeneralResponse{
-					Status:  http.StatusBadRequest,
-					Message: ErrorMessage,
-					Data:    validationErr.Error(),
-				},
-			)
-			return
-		}
+		validationErr := validate.Struct(&model)
+		GenerateErrorOutput(http.StatusBadRequest, validationErr, c)
 	}
-
 }

@@ -23,4 +23,5 @@ func main() {
 	routes.IORoutes(router)
 
 	router.Run("localhost:6000")
+
 }

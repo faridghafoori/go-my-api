@@ -2,9 +2,9 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"gin-mongo-api/configs"
 	"gin-mongo-api/models"
-	"gin-mongo-api/responses"
 	"gin-mongo-api/utils"
 	"net/http"
 	"time"
@@ -24,32 +24,17 @@ func CreateUser() gin.HandlerFunc {
 
 		//validate the request body
 		var user models.User
-		if err := c.BindJSON(&user); err != nil {
-			c.JSON(
-				http.StatusBadRequest,
-				responses.GeneralResponse{
-					Status:  http.StatusBadRequest,
-					Message: utils.ErrorMessage,
-					Data:    err.Error(),
-				},
-			)
-			return
-		}
+		err := c.BindJSON(&user)
+		utils.GenerateErrorOutput(http.StatusBadRequest, err, c)
 
 		//use the validator library to validate required fields
 		utils.ValidateStruct(&user)
 
 		//check if the username is already taken
 		if checkDuplicateUser(user.Username) {
-			c.JSON(
-				http.StatusBadRequest,
-				responses.GeneralResponse{
-					Status:  http.StatusBadRequest,
-					Message: utils.ErrorMessage,
-					Data:    "username already taken",
-				},
-			)
-			return
+			utils.GenerateErrorOutput(http.StatusBadRequest, errors.New("taken"), c, map[string]interface{}{
+				"data": "Username already taken",
+			})
 		}
 
 		newUser := models.User{
@@ -61,27 +46,10 @@ func CreateUser() gin.HandlerFunc {
 			UpdatedAt: time.Now(),
 		}
 
-		_, err := userCollection.InsertOne(ctx, newUser)
-		if err != nil {
-			c.JSON(
-				http.StatusInternalServerError,
-				responses.GeneralResponse{
-					Status:  http.StatusInternalServerError,
-					Message: utils.ErrorMessage,
-					Data:    err.Error(),
-				},
-			)
-			return
-		}
+		_, err = userCollection.InsertOne(ctx, newUser)
+		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
 
-		c.JSON(
-			http.StatusCreated,
-			responses.GeneralResponse{
-				Status:  http.StatusCreated,
-				Message: utils.SuccessMessage,
-				Data:    newUser,
-			},
-		)
+		utils.GenerateSuccessOutput(newUser, c, http.StatusCreated)
 	}
 }
 
@@ -94,26 +62,9 @@ func GetUser() gin.HandlerFunc {
 		objId, _ := primitive.ObjectIDFromHex(userId)
 		var user models.User
 		err := userCollection.FindOne(ctx, bson.M{"id": objId}).Decode(&user)
-		if err != nil {
-			c.JSON(
-				http.StatusInternalServerError,
-				responses.GeneralResponse{
-					Status:  http.StatusInternalServerError,
-					Message: utils.ErrorMessage,
-					Data:    err.Error(),
-				},
-			)
-			return
-		}
+		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
 
-		c.JSON(
-			http.StatusOK,
-			responses.GeneralResponse{
-				Status:  http.StatusOK,
-				Message: utils.SuccessMessage,
-				Data:    user,
-			},
-		)
+		utils.GenerateSuccessOutput(user, c)
 	}
 }
 
@@ -126,32 +77,17 @@ func EditUser() gin.HandlerFunc {
 		objId, _ := primitive.ObjectIDFromHex(userId)
 		//validate the request body
 		var user models.User
-		if err := c.BindJSON(&user); err != nil {
-			c.JSON(
-				http.StatusBadRequest,
-				responses.GeneralResponse{
-					Status:  http.StatusBadRequest,
-					Message: utils.ErrorMessage,
-					Data:    err.Error(),
-				},
-			)
-			return
-		}
+		err := c.BindJSON(&user)
+		utils.GenerateErrorOutput(http.StatusBadRequest, err, c)
 
 		//use the validator library to validate required fields
 		utils.ValidateStruct(&user)
 
 		//check if the username is already taken
 		if checkDuplicateUser(user.Username) {
-			c.JSON(
-				http.StatusBadRequest,
-				responses.GeneralResponse{
-					Status:  http.StatusBadRequest,
-					Message: utils.ErrorMessage,
-					Data:    "Username already taken !",
-				},
-			)
-			return
+			utils.GenerateErrorOutput(http.StatusBadRequest, errors.New("taken"), c, map[string]interface{}{
+				"data": "Username already taken",
+			})
 		}
 
 		update := bson.M{
@@ -162,43 +98,16 @@ func EditUser() gin.HandlerFunc {
 		}
 
 		result, err := userCollection.UpdateOne(ctx, bson.M{"id": objId}, bson.M{"$set": update})
-		if err != nil {
-			c.JSON(
-				http.StatusInternalServerError,
-				responses.GeneralResponse{
-					Status:  http.StatusInternalServerError,
-					Message: utils.ErrorMessage,
-					Data:    err.Error(),
-				},
-			)
-			return
-		}
+		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
 
 		//get updated user details
 		var updatedUser models.User
 		if result.MatchedCount == 1 {
 			err := userCollection.FindOne(ctx, bson.M{"id": objId}).Decode(&updatedUser)
-			if err != nil {
-				c.JSON(
-					http.StatusInternalServerError,
-					responses.GeneralResponse{
-						Status:  http.StatusInternalServerError,
-						Message: utils.ErrorMessage,
-						Data:    err.Error(),
-					},
-				)
-				return
-			}
+			utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
 		}
 
-		c.JSON(
-			http.StatusOK,
-			responses.GeneralResponse{
-				Status:  http.StatusOK,
-				Message: utils.SuccessMessage,
-				Data:    updatedUser,
-			},
-		)
+		utils.GenerateSuccessOutput(updatedUser, c)
 	}
 }
 
@@ -211,36 +120,15 @@ func DeleteUser() gin.HandlerFunc {
 		objId, _ := primitive.ObjectIDFromHex(userId)
 
 		result, err := userCollection.DeleteOne(ctx, bson.M{"id": objId})
-		if err != nil {
-			c.JSON(
-				http.StatusInternalServerError,
-				responses.GeneralResponse{
-					Status:  http.StatusInternalServerError,
-					Message: utils.ErrorMessage,
-					Data:    err.Error(),
-				},
-			)
-			return
-		}
+		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
 
 		if result.DeletedCount < 1 {
-			c.JSON(http.StatusNotFound,
-				responses.GeneralResponse{
-					Status:  http.StatusNotFound,
-					Message: utils.ErrorMessage,
-					Data:    "User with specified ID not found!",
-				},
-			)
-			return
+			utils.GenerateErrorOutput(http.StatusNotFound, err, c, map[string]interface{}{
+				"data": "User with specified ID not found!",
+			})
 		}
 
-		c.JSON(http.StatusOK,
-			responses.GeneralResponse{
-				Status:  http.StatusOK,
-				Message: utils.SuccessMessage,
-				Data:    "User successfully deleted!",
-			},
-		)
+		utils.GenerateSuccessOutput("User successfully deleted!", c)
 	}
 }
 
@@ -250,59 +138,19 @@ func GetAllUsers() gin.HandlerFunc {
 		var users []models.User
 		defer cancel()
 
-		_, err := ExtractTokenMetadata(c.Request)
-		if err != nil {
-			c.JSON(
-				http.StatusUnauthorized,
-				responses.GeneralResponse{
-					Status:  http.StatusUnauthorized,
-					Message: utils.UnauthorizedMessage,
-					Data:    err.Error(),
-				},
-			)
-			return
-		}
-
 		results, err := userCollection.Find(ctx, bson.M{})
-
-		if err != nil {
-			c.JSON(
-				http.StatusInternalServerError,
-				responses.GeneralResponse{
-					Status:  http.StatusInternalServerError,
-					Message: utils.ErrorMessage,
-					Data:    err.Error(),
-				},
-			)
-			return
-		}
+		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
 
 		//reading from the db in an optimal way
 		defer results.Close(ctx)
 		for results.Next(ctx) {
 			var singleUser models.User
-			if err = results.Decode(&singleUser); err != nil {
-				c.JSON(
-					http.StatusInternalServerError,
-					responses.GeneralResponse{
-						Status:  http.StatusInternalServerError,
-						Message: utils.ErrorMessage,
-						Data:    err.Error(),
-					},
-				)
-				return
-			}
-
+			err = results.Decode(&singleUser)
+			utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
 			users = append(users, singleUser)
 		}
 
-		c.JSON(http.StatusOK,
-			responses.GeneralResponse{
-				Status:  http.StatusOK,
-				Message: utils.SuccessMessage,
-				Data:    users,
-			},
-		)
+		utils.GenerateSuccessOutput(users, c)
 	}
 }
 

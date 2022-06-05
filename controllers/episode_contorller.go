@@ -4,7 +4,6 @@ import (
 	"context"
 	"gin-mongo-api/configs"
 	"gin-mongo-api/models"
-	"gin-mongo-api/responses"
 	"gin-mongo-api/utils"
 	"net/http"
 	"time"
@@ -23,44 +22,18 @@ func GetEpisodes() gin.HandlerFunc {
 		defer cancel()
 
 		results, err := episodeCollection.Find(ctx, bson.M{})
-		if err != nil {
-			c.JSON(
-				http.StatusInternalServerError,
-				responses.GeneralResponse{
-					Status:  http.StatusInternalServerError,
-					Message: utils.ErrorMessage,
-					Data:    err.Error(),
-				},
-			)
-			return
-		}
+		utils.GenerateErrorOutput(http.StatusBadRequest, err, c)
 
 		var episodes []models.Episode
 		defer results.Close(ctx)
 		for results.Next(ctx) {
 			var singleEpisode models.Episode
-			if err = results.Decode(&singleEpisode); err != nil {
-				c.JSON(
-					http.StatusInternalServerError,
-					responses.GeneralResponse{
-						Status:  http.StatusInternalServerError,
-						Message: utils.ErrorMessage,
-						Data:    err.Error(),
-					},
-				)
-				return
-			}
+			err = results.Decode(&singleEpisode)
+			utils.GenerateErrorOutput(http.StatusBadRequest, err, c)
 			episodes = append(episodes, singleEpisode)
 		}
 
-		c.JSON(
-			http.StatusOK,
-			responses.GeneralResponse{
-				Status:  http.StatusOK,
-				Message: utils.SuccessMessage,
-				Data:    episodes,
-			},
-		)
+		utils.GenerateSuccessOutput(episodes, c)
 	}
 }
 
@@ -71,17 +44,8 @@ func CreateEpisode() gin.HandlerFunc {
 
 		//validate the request body
 		var episode models.Episode
-		if err := c.BindJSON(&episode); err != nil {
-			c.JSON(
-				http.StatusBadRequest,
-				responses.GeneralResponse{
-					Status:  http.StatusBadRequest,
-					Message: utils.ErrorMessage,
-					Data:    err.Error(),
-				},
-			)
-			return
-		}
+		err := c.BindJSON(&episode)
+		utils.GenerateErrorOutput(http.StatusBadRequest, err, c)
 
 		//use the validator library to validate required fields
 		utils.ValidateStruct(&episode)
@@ -97,26 +61,24 @@ func CreateEpisode() gin.HandlerFunc {
 			UpdatedAt:   time.Now(),
 		}
 
-		_, err := episodeCollection.InsertOne(ctx, newEpisode)
-		if err != nil {
-			c.JSON(
-				http.StatusInternalServerError,
-				responses.GeneralResponse{
-					Status:  http.StatusInternalServerError,
-					Message: utils.ErrorMessage,
-					Data:    err.Error(),
-				},
-			)
-			return
-		}
+		_, err = episodeCollection.InsertOne(ctx, newEpisode)
+		utils.GenerateErrorOutput(http.StatusBadRequest, err, c)
 
-		c.JSON(
-			http.StatusCreated,
-			responses.GeneralResponse{
-				Status:  http.StatusCreated,
-				Message: utils.SuccessMessage,
-				Data:    newEpisode,
-			},
-		)
+		utils.GenerateSuccessOutput(newEpisode, c)
+	}
+}
+
+func GetEpisode() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		episodeId := c.Param("episodeId")
+		defer cancel()
+
+		episodeObjId, _ := primitive.ObjectIDFromHex(episodeId)
+		var episode models.Episode
+		err := episodeCollection.FindOne(ctx, bson.M{"id": episodeObjId}).Decode(&episode)
+		utils.GenerateErrorOutput(http.StatusBadRequest, err, c)
+
+		utils.GenerateSuccessOutput(episode, c)
 	}
 }

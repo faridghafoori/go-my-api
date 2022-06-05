@@ -3,7 +3,6 @@ package controllers
 import (
 	"context"
 	"gin-mongo-api/models"
-	"gin-mongo-api/responses"
 	"gin-mongo-api/utils"
 	"net/http"
 	"time"
@@ -23,26 +22,9 @@ func GetUserAddresses() gin.HandlerFunc {
 
 		var user models.User
 		err := userCollection.FindOne(ctx, bson.M{"id": objId}).Decode(&user)
-		if err != nil {
-			c.JSON(
-				http.StatusInternalServerError,
-				responses.GeneralResponse{
-					Status:  http.StatusInternalServerError,
-					Message: utils.ErrorMessage,
-					Data:    err.Error(),
-				},
-			)
-			return
-		}
+		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
 
-		c.JSON(
-			http.StatusOK,
-			responses.GeneralResponse{
-				Status:  http.StatusOK,
-				Message: utils.SuccessMessage,
-				Data:    user.Addresses,
-			},
-		)
+		utils.GenerateSuccessOutput(user.Addresses, c)
 	}
 }
 
@@ -53,33 +35,15 @@ func AddNewAddressToUser() gin.HandlerFunc {
 		defer cancel()
 
 		userObjId, _ := primitive.ObjectIDFromHex(userId)
+
 		var user models.User
 		err := userCollection.FindOne(ctx, bson.M{"id": userObjId}).Decode(&user)
-		if err != nil {
-			c.JSON(
-				http.StatusInternalServerError,
-				responses.GeneralResponse{
-					Status:  http.StatusInternalServerError,
-					Message: utils.ErrorMessage,
-					Data:    err.Error(),
-				},
-			)
-			return
-		}
+		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
 
-		var address models.Address
 		//validate the request body
-		if err := c.BindJSON(&address); err != nil {
-			c.JSON(
-				http.StatusBadRequest,
-				responses.GeneralResponse{
-					Status:  http.StatusBadRequest,
-					Message: utils.ErrorMessage,
-					Data:    err.Error(),
-				},
-			)
-			return
-		}
+		var address models.Address
+		err = c.BindJSON(&address)
+		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
 
 		//use the validator library to validate required fields
 		utils.ValidateStruct(&address)
@@ -106,26 +70,10 @@ func AddNewAddressToUser() gin.HandlerFunc {
 		}
 
 		result, err := userCollection.UpdateOne(ctx, bson.M{"id": userObjId}, bson.M{"$set": update})
-		if err != nil {
-			c.JSON(
-				http.StatusInternalServerError,
-				responses.GeneralResponse{
-					Status:  http.StatusInternalServerError,
-					Message: utils.ErrorMessage,
-					Data:    err.Error(),
-				},
-			)
-			return
-		}
+		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
+
 		if result.MatchedCount == 1 {
-			c.JSON(
-				http.StatusOK,
-				responses.GeneralResponse{
-					Status:  http.StatusOK,
-					Message: utils.SuccessMessage,
-					Data:    user,
-				},
-			)
+			utils.GenerateSuccessOutput(user, c)
 		}
 	}
 }
@@ -146,17 +94,7 @@ func EditAddressOfUser() gin.HandlerFunc {
 		}
 		var user models.User
 		err := userCollection.FindOne(ctx, filter).Decode(&user)
-		if err != nil {
-			c.JSON(
-				http.StatusInternalServerError,
-				responses.GeneralResponse{
-					Status:  http.StatusInternalServerError,
-					Message: utils.ErrorMessage,
-					Data:    err.Error(),
-				},
-			)
-			return
-		}
+		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
 
 		var selectedUserAddressIndex int
 		for i, address := range user.Addresses {
@@ -167,17 +105,8 @@ func EditAddressOfUser() gin.HandlerFunc {
 
 		var inputAddress models.Address
 		//validate the request body
-		if err := c.BindJSON(&inputAddress); err != nil {
-			c.JSON(
-				http.StatusBadRequest,
-				responses.GeneralResponse{
-					Status:  http.StatusBadRequest,
-					Message: utils.ErrorMessage,
-					Data:    err.Error(),
-				},
-			)
-			return
-		}
+		err = c.BindJSON(&inputAddress)
+		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
 
 		//use the validator library to validate required fields
 		utils.ValidateStruct(&inputAddress)
@@ -199,26 +128,10 @@ func EditAddressOfUser() gin.HandlerFunc {
 		}
 
 		result, err := userCollection.UpdateOne(ctx, bson.M{"id": userObjId}, bson.M{"$set": update})
-		if err != nil {
-			c.JSON(
-				http.StatusInternalServerError,
-				responses.GeneralResponse{
-					Status:  http.StatusInternalServerError,
-					Message: utils.ErrorMessage,
-					Data:    err.Error(),
-				},
-			)
-			return
-		}
+		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
+
 		if result.MatchedCount == 1 {
-			c.JSON(
-				http.StatusOK,
-				responses.GeneralResponse{
-					Status:  http.StatusOK,
-					Message: utils.SuccessMessage,
-					Data:    user,
-				},
-			)
+			utils.GenerateSuccessOutput(user, c)
 		}
 	}
 }
@@ -239,17 +152,7 @@ func DeleteAddressOfUser() gin.HandlerFunc {
 		}
 		var user models.User
 		err := userCollection.FindOne(ctx, filter).Decode(&user)
-		if err != nil {
-			c.JSON(
-				http.StatusInternalServerError,
-				responses.GeneralResponse{
-					Status:  http.StatusInternalServerError,
-					Message: utils.ErrorMessage,
-					Data:    err.Error(),
-				},
-			)
-			return
-		}
+		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
 
 		var selectedUserAddressIndex int
 		for i, address := range user.Addresses {
@@ -269,26 +172,10 @@ func DeleteAddressOfUser() gin.HandlerFunc {
 		}
 
 		result, err := userCollection.UpdateOne(ctx, bson.M{"id": userObjId}, bson.M{"$set": update})
-		if err != nil {
-			c.JSON(
-				http.StatusInternalServerError,
-				responses.GeneralResponse{
-					Status:  http.StatusInternalServerError,
-					Message: utils.ErrorMessage,
-					Data:    err.Error(),
-				},
-			)
-			return
-		}
+		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
+
 		if result.MatchedCount == 1 {
-			c.JSON(
-				http.StatusOK,
-				responses.GeneralResponse{
-					Status:  http.StatusOK,
-					Message: utils.SuccessMessage,
-					Data:    user,
-				},
-			)
+			utils.GenerateSuccessOutput(user, c)
 		}
 	}
 }
