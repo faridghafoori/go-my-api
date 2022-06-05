@@ -27,7 +27,8 @@ func Authenticate() gin.HandlerFunc {
 		utils.GenerateErrorOutput(http.StatusUnprocessableEntity, bindError, c)
 
 		//use the validator library to validate required fields
-		utils.ValidateStruct(&inputUser)
+		validationErr := validate.Struct(&inputUser)
+		utils.GenerateErrorOutput(http.StatusBadRequest, validationErr, c)
 
 		var user models.User
 		findError := userCollection.FindOne(ctx, bson.M{"username": inputUser.Username}).Decode(&user)
@@ -173,7 +174,7 @@ func Refresh() gin.HandlerFunc {
 
 func CreateToken(userId string) (*models.TokenDetails, error) {
 	td := &models.TokenDetails{}
-	td.AtExpires = time.Now().Add(time.Hour * 1).Unix()
+	td.AtExpires = time.Now().Add(time.Hour * 24).Unix()
 	td.AccessUuid = uuid.NewV4().String()
 
 	td.RtExpires = time.Now().Add(time.Hour * 24 * 7).Unix()
@@ -310,11 +311,9 @@ func TokenAuthMiddleware() gin.HandlerFunc {
 			c,
 			map[string]interface{}{
 				"message": utils.UnauthorizedMessage,
-				"data":    "Access token expired",
 			},
 		)
 		if err != nil {
-			c.Abort()
 			return
 		}
 		c.Next()

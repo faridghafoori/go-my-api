@@ -19,6 +19,7 @@ func main() {
 	//routes
 	routes.AuthenticationRoutes(router)
 	routes.UserRoutes(router)
+	routes.RoleRoutes(router)
 	routes.EpisodeRoutes(router)
 	routes.IORoutes(router)
 

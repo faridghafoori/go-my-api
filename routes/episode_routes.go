@@ -11,5 +11,6 @@ func EpisodeRoutes(router *gin.Engine) {
 	router.GET("/episodes", controllers.GetEpisodes())
 	router.GET("/episodes/:episodeId", controllers.GetEpisode())
 	router.POST("/episodes", controllers.TokenAuthMiddleware(), controllers.CreateEpisode())
-
+	router.PUT("/episodes/:episodeId", controllers.TokenAuthMiddleware(), controllers.EditEpisode())
+	router.DELETE("/episodes/:episodeId", controllers.TokenAuthMiddleware(), controllers.DeleteEpisode())
 }

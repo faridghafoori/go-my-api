@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"gin-mongo-api/configs"
 	"gin-mongo-api/models"
 	"gin-mongo-api/utils"
@@ -37,6 +38,21 @@ func GetEpisodes() gin.HandlerFunc {
 	}
 }
 
+func GetEpisode() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		episodeId := c.Param("episodeId")
+		defer cancel()
+
+		episodeObjId, _ := primitive.ObjectIDFromHex(episodeId)
+		var episode models.Episode
+		err := episodeCollection.FindOne(ctx, bson.M{"id": episodeObjId}).Decode(&episode)
+		utils.GenerateErrorOutput(http.StatusBadRequest, err, c)
+
+		utils.GenerateSuccessOutput(episode, c)
+	}
+}
+
 func CreateEpisode() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -48,7 +64,8 @@ func CreateEpisode() gin.HandlerFunc {
 		utils.GenerateErrorOutput(http.StatusBadRequest, err, c)
 
 		//use the validator library to validate required fields
-		utils.ValidateStruct(&episode)
+		validationErr := validate.Struct(&episode)
+		utils.GenerateErrorOutput(http.StatusBadRequest, validationErr, c)
 
 		newEpisode := models.Episode{
 			Id:          primitive.NewObjectID(),
@@ -68,17 +85,54 @@ func CreateEpisode() gin.HandlerFunc {
 	}
 }
 
-func GetEpisode() gin.HandlerFunc {
+func EditEpisode() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		episodeId := c.Param("episodeId")
 		defer cancel()
 
 		episodeObjId, _ := primitive.ObjectIDFromHex(episodeId)
+
 		var episode models.Episode
 		err := episodeCollection.FindOne(ctx, bson.M{"id": episodeObjId}).Decode(&episode)
+		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
+
+		err = c.BindJSON(&episode)
 		utils.GenerateErrorOutput(http.StatusBadRequest, err, c)
 
+		validationErr := validate.Struct(&episode)
+		utils.GenerateErrorOutput(http.StatusBadRequest, validationErr, c)
+
+		episode.UpdatedAt = time.Now()
+
+		_, err = episodeCollection.UpdateOne(ctx, bson.M{"id": episodeObjId}, bson.M{"$set": episode})
+		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
+
 		utils.GenerateSuccessOutput(episode, c)
+	}
+}
+
+func DeleteEpisode() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		episodeId := c.Param("episodeId")
+		defer cancel()
+
+		episodeObjId, _ := primitive.ObjectIDFromHex(episodeId)
+		result, err := episodeCollection.DeleteOne(ctx, bson.M{"id": episodeObjId})
+		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
+
+		if result.DeletedCount < 1 {
+			utils.GenerateErrorOutput(
+				http.StatusNotFound,
+				errors.New("role not found"),
+				c,
+				map[string]interface{}{
+					"data": "Episode with specified ID not found!",
+				},
+			)
+		}
+
+		utils.GenerateSuccessOutput("Episode successfully deleted!", c)
 	}
 }

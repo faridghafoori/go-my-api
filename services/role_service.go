@@ -1,0 +1,46 @@
+package services
+
+import (
+	"context"
+	"gin-mongo-api/configs"
+	"gin-mongo-api/models"
+	"log"
+	"time"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+)
+
+var roleCollection *mongo.Collection = configs.GetCollection(configs.DB, "roles")
+
+func GenerateUserRoles(roleIds []string) []models.Role {
+	var roles []models.Role
+	ch := make(chan models.Role)
+
+	go FetchRole(roleIds, ch)
+
+	for l := range ch {
+		roles = append(roles, l)
+	}
+
+	return roles
+}
+
+func FetchRole(roleIds []string, ch chan models.Role) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	for _, roleId := range roleIds {
+		roleObjId, _ := primitive.ObjectIDFromHex(roleId)
+		var role models.Role
+		err := roleCollection.FindOne(ctx, bson.M{"id": roleObjId}).Decode(&role)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		ch <- role
+	}
+
+	close(ch)
+}

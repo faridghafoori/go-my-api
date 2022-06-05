@@ -5,6 +5,7 @@ import (
 	"errors"
 	"gin-mongo-api/configs"
 	"gin-mongo-api/models"
+	"gin-mongo-api/services"
 	"gin-mongo-api/utils"
 	"net/http"
 	"time"
@@ -17,39 +18,25 @@ import (
 
 var userCollection *mongo.Collection = configs.GetCollection(configs.DB, "users")
 
-func CreateUser() gin.HandlerFunc {
+func GetUsers() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		var users []models.User
 		defer cancel()
 
-		//validate the request body
-		var user models.User
-		err := c.BindJSON(&user)
-		utils.GenerateErrorOutput(http.StatusBadRequest, err, c)
-
-		//use the validator library to validate required fields
-		utils.ValidateStruct(&user)
-
-		//check if the username is already taken
-		if checkDuplicateUser(user.Username) {
-			utils.GenerateErrorOutput(http.StatusBadRequest, errors.New("taken"), c, map[string]interface{}{
-				"data": "Username already taken",
-			})
-		}
-
-		newUser := models.User{
-			Id:        primitive.NewObjectID(),
-			Name:      user.Name,
-			Username:  user.Username,
-			Password:  utils.GetMD5Hash(user.Password),
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		}
-
-		_, err = userCollection.InsertOne(ctx, newUser)
+		results, err := userCollection.Find(ctx, bson.M{})
 		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
 
-		utils.GenerateSuccessOutput(newUser, c, http.StatusCreated)
+		//reading from the db in an optimal way
+		defer results.Close(ctx)
+		for results.Next(ctx) {
+			var singleUser models.User
+			err = results.Decode(&singleUser)
+			utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
+			users = append(users, singleUser)
+		}
+
+		utils.GenerateSuccessOutput(users, c)
 	}
 }
 
@@ -68,6 +55,44 @@ func GetUser() gin.HandlerFunc {
 	}
 }
 
+func CreateUser() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		//validate the request body
+		var inputUser models.UserWithRoleId
+		err := c.BindJSON(&inputUser)
+		utils.GenerateErrorOutput(http.StatusBadRequest, err, c)
+
+		//use the validator library to validate required fields
+		validationErr := validate.Struct(&inputUser)
+		utils.GenerateErrorOutput(http.StatusBadRequest, validationErr, c)
+
+		//check if the username is already taken
+		if checkDuplicateUser(inputUser.Username) {
+			utils.GenerateErrorOutput(http.StatusBadRequest, errors.New("taken"), c, map[string]interface{}{
+				"data": "Username already taken",
+			})
+		}
+
+		newUser := models.User{
+			Id:        primitive.NewObjectID(),
+			Name:      inputUser.Name,
+			Username:  inputUser.Username,
+			Password:  utils.GetMD5Hash(inputUser.Password),
+			Roles:     services.GenerateUserRoles(inputUser.RoleIds),
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+
+		_, err = userCollection.InsertOne(ctx, newUser)
+		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
+
+		utils.GenerateSuccessOutput(newUser, c, http.StatusCreated)
+	}
+}
+
 func EditUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -75,29 +100,35 @@ func EditUser() gin.HandlerFunc {
 		defer cancel()
 
 		objId, _ := primitive.ObjectIDFromHex(userId)
-		//validate the request body
+
 		var user models.User
-		err := c.BindJSON(&user)
+		err := userCollection.FindOne(ctx, bson.M{"id": objId}).Decode(&user)
+		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
+
+		//validate the request body
+		var inputUser models.UserWithRoleId
+		err = c.BindJSON(&inputUser)
 		utils.GenerateErrorOutput(http.StatusBadRequest, err, c)
 
 		//use the validator library to validate required fields
-		utils.ValidateStruct(&user)
+		validationErr := validate.Struct(&inputUser)
+		utils.GenerateErrorOutput(http.StatusBadRequest, validationErr, c)
 
 		//check if the username is already taken
-		if checkDuplicateUser(user.Username) {
-			utils.GenerateErrorOutput(http.StatusBadRequest, errors.New("taken"), c, map[string]interface{}{
-				"data": "Username already taken",
-			})
+		if checkDuplicateUser(inputUser.Username) {
+			utils.GenerateErrorOutput(
+				http.StatusBadRequest,
+				errors.New("taken"),
+				c,
+				map[string]interface{}{
+					"data": "Username already taken",
+				},
+			)
 		}
+		user.Roles = services.GenerateUserRoles(inputUser.RoleIds)
+		user.UpdatedAt = time.Now()
 
-		update := bson.M{
-			"name":       user.Name,
-			"username":   user.Username,
-			"password":   utils.GetMD5Hash(user.Password),
-			"updated_at": time.Now(),
-		}
-
-		result, err := userCollection.UpdateOne(ctx, bson.M{"id": objId}, bson.M{"$set": update})
+		result, err := userCollection.UpdateOne(ctx, bson.M{"id": objId}, bson.M{"$set": user})
 		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
 
 		//get updated user details
@@ -123,34 +154,17 @@ func DeleteUser() gin.HandlerFunc {
 		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
 
 		if result.DeletedCount < 1 {
-			utils.GenerateErrorOutput(http.StatusNotFound, err, c, map[string]interface{}{
-				"data": "User with specified ID not found!",
-			})
+			utils.GenerateErrorOutput(
+				http.StatusNotFound,
+				errors.New("user not found"),
+				c,
+				map[string]interface{}{
+					"data": "User with specified ID not found!",
+				},
+			)
 		}
 
 		utils.GenerateSuccessOutput("User successfully deleted!", c)
-	}
-}
-
-func GetAllUsers() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		var users []models.User
-		defer cancel()
-
-		results, err := userCollection.Find(ctx, bson.M{})
-		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
-
-		//reading from the db in an optimal way
-		defer results.Close(ctx)
-		for results.Next(ctx) {
-			var singleUser models.User
-			err = results.Decode(&singleUser)
-			utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
-			users = append(users, singleUser)
-		}
-
-		utils.GenerateSuccessOutput(users, c)
 	}
 }
 

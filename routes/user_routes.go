@@ -8,7 +8,7 @@ import (
 
 func UserRoutes(router *gin.Engine) {
 	// All routes related to users comes here
-	router.GET("/users", controllers.TokenAuthMiddleware(), controllers.GetAllUsers())
+	router.GET("/users", controllers.TokenAuthMiddleware(), controllers.GetUsers())
 	router.POST("/users", controllers.TokenAuthMiddleware(), controllers.CreateUser())
 	router.GET("/users/:userId", controllers.TokenAuthMiddleware(), controllers.GetUser())
 	router.PUT("/users/:userId", controllers.TokenAuthMiddleware(), controllers.EditUser())

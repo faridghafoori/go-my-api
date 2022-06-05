@@ -46,7 +46,8 @@ func AddNewAddressToUser() gin.HandlerFunc {
 		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
 
 		//use the validator library to validate required fields
-		utils.ValidateStruct(&address)
+		validationErr := validate.Struct(&address)
+		utils.GenerateErrorOutput(http.StatusBadRequest, validationErr, c)
 
 		newAddress := models.Address{
 			Id:        primitive.NewObjectID(),
@@ -109,7 +110,8 @@ func EditAddressOfUser() gin.HandlerFunc {
 		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
 
 		//use the validator library to validate required fields
-		utils.ValidateStruct(&inputAddress)
+		validationErr := validate.Struct(&inputAddress)
+		utils.GenerateErrorOutput(http.StatusBadRequest, validationErr, c)
 
 		user.Addresses[selectedUserAddressIndex].City = inputAddress.City
 		user.Addresses[selectedUserAddressIndex].Country = inputAddress.Country
