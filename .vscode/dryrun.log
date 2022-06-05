@@ -1,5 +1,0 @@
-make --dry-run --always-make --keep-going --print-directory
-make: Entering directory `/Users/farid/Desktop/Projects/Go/go-my-api'
-go run main.go
-make: Leaving directory `/Users/farid/Desktop/Projects/Go/go-my-api'
- 
