@@ -17,7 +17,7 @@ func Display(key *otp.Key, data []byte) string {
 	// fmt.Println("Writing PNG to qr-code.png....")
 	file := "public/totp_codes/" + key.AccountName() + "-qr-code.png"
 	ioutil.WriteFile(file, data, 0644)
-	link := configs.EnvRunableProjectUri() + "/file/totp_codes/" + key.AccountName() + "-qr-code.png"
+	link := configs.ENV_RUNABLE_PROJECT_URI() + "/file/totp_codes/" + key.AccountName() + "-qr-code.png"
 	// fmt.Println("")
 	// fmt.Println("Please add your TOTP to your OTP Application now!")
 	// fmt.Println("")

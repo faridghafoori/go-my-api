@@ -27,7 +27,7 @@ func CreateTOTPToken(userId string) (*models.TokenDetails, error) {
 	atClaims["exp"] = td.AtExpires
 	atClaims["iss"] = "totp"
 	at := jwt.NewWithClaims(jwt.SigningMethodHS256, atClaims)
-	td.AccessToken, err = at.SignedString([]byte(configs.EnvJWTTOTPSecret()))
+	td.AccessToken, err = at.SignedString([]byte(configs.ENV_JWT_TOTP_SECRET()))
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func VerifyTOTPToken(r *http.Request) (*jwt.Token, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return []byte(configs.EnvJWTTOTPSecret()), nil
+		return []byte(configs.ENV_JWT_TOTP_SECRET()), nil
 	})
 	if err != nil {
 		return nil, err
@@ -86,7 +86,7 @@ func CreateToken(userId string) (*models.TokenDetails, error) {
 	atClaims["exp"] = td.AtExpires
 	atClaims["iss"] = "auth"
 	at := jwt.NewWithClaims(jwt.SigningMethodHS256, atClaims)
-	td.AccessToken, err = at.SignedString([]byte(configs.EnvJWTAcessSecret()))
+	td.AccessToken, err = at.SignedString([]byte(configs.ENV_JWT_ACCESS_SECRET()))
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +97,7 @@ func CreateToken(userId string) (*models.TokenDetails, error) {
 	rtClaims["exp"] = td.RtExpires
 	atClaims["iss"] = "auth"
 	rt := jwt.NewWithClaims(jwt.SigningMethodHS256, rtClaims)
-	td.RefreshToken, err = rt.SignedString([]byte(configs.EnvJWTRefreshSecret()))
+	td.RefreshToken, err = rt.SignedString([]byte(configs.ENV_JWT_REFRESH_SECRET()))
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +160,7 @@ func VerifyAccessToken(r *http.Request) (*jwt.Token, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return []byte(configs.EnvJWTAcessSecret()), nil
+		return []byte(configs.ENV_JWT_ACCESS_SECRET()), nil
 	})
 	if err != nil {
 		return nil, err

@@ -121,7 +121,7 @@ func Refresh() gin.HandlerFunc {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
-			return []byte(configs.EnvJWTRefreshSecret()), nil
+			return []byte(configs.ENV_JWT_REFRESH_SECRET()), nil
 		})
 		//if there is an error, the token must have expired
 		utils.GenerateErrorOutput(

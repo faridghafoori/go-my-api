@@ -16,11 +16,14 @@ func main() {
 	//run redis
 	configs.InitRedis()
 
+	//run minio server
+	configs.InitMinio()
+
 	//routes
 	routes.AuthenticationRoutes(router)
 	routes.UserRoutes(router)
 	routes.RoleRoutes(router)
 	routes.EpisodeRoutes(router)
 	routes.IORoutes(router)
-	router.Run(configs.EnvLaunchProjectUri())
+	router.Run(configs.ENV_LAUNCH_PROJECT_URI())
 }

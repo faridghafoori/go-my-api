@@ -58,7 +58,7 @@ func CreateEpisode() gin.HandlerFunc {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		//validate the request body
+		// validate the request body
 		var episode models.Episode
 		err := c.BindJSON(&episode)
 		utils.GenerateErrorOutput(http.StatusBadRequest, err, c)
