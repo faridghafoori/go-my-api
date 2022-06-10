@@ -42,13 +42,9 @@ func GetUsers() gin.HandlerFunc {
 
 func GetUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		userId := c.Param("userId")
-		defer cancel()
 
-		objId, _ := primitive.ObjectIDFromHex(userId)
-		var user models.User
-		err := userCollection.FindOne(ctx, bson.M{"id": objId}).Decode(&user)
+		user, err := services.FetchUser(userId)
 		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
 
 		utils.GenerateSuccessOutput(user, c)
@@ -61,7 +57,7 @@ func CreateUser() gin.HandlerFunc {
 		defer cancel()
 
 		//validate the request body
-		var inputUser models.UserWithRoleId
+		var inputUser models.UserInputBody
 		err := c.BindJSON(&inputUser)
 		utils.GenerateErrorOutput(http.StatusBadRequest, err, c)
 
@@ -70,21 +66,14 @@ func CreateUser() gin.HandlerFunc {
 		utils.GenerateErrorOutput(http.StatusBadRequest, validationErr, c)
 
 		//check if the username is already taken
-		if checkDuplicateUser(inputUser.Username) {
+		if services.CheckDuplicateUser(inputUser.Username) {
 			utils.GenerateErrorOutput(http.StatusBadRequest, errors.New("taken"), c, map[string]interface{}{
 				"data": "Username already taken",
 			})
 		}
 
-		newUser := models.User{
-			Id:        primitive.NewObjectID(),
-			Name:      inputUser.Name,
-			Username:  inputUser.Username,
-			Password:  utils.GetMD5Hash(inputUser.Password),
-			Roles:     services.GenerateUserRoles(inputUser.RoleIds),
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-		}
+		//create the user
+		newUser := services.FillNewUserWithDefaultValues(inputUser)
 
 		_, err = userCollection.InsertOne(ctx, newUser)
 		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
@@ -99,14 +88,13 @@ func EditUser() gin.HandlerFunc {
 		userId := c.Param("userId")
 		defer cancel()
 
-		objId, _ := primitive.ObjectIDFromHex(userId)
+		userObjId, _ := primitive.ObjectIDFromHex(userId)
 
-		var user models.User
-		err := userCollection.FindOne(ctx, bson.M{"id": objId}).Decode(&user)
+		findedUser, err := services.FetchUser(userId)
 		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
 
-		//validate the request body
-		var inputUser models.UserWithRoleId
+		// validate the request body
+		var inputUser models.UserInputBody
 		err = c.BindJSON(&inputUser)
 		utils.GenerateErrorOutput(http.StatusBadRequest, err, c)
 
@@ -115,7 +103,7 @@ func EditUser() gin.HandlerFunc {
 		utils.GenerateErrorOutput(http.StatusBadRequest, validationErr, c)
 
 		//check if the username is already taken
-		if checkDuplicateUser(inputUser.Username) {
+		if findedUser.Username != inputUser.Username && services.CheckDuplicateUser(inputUser.Username) {
 			utils.GenerateErrorOutput(
 				http.StatusBadRequest,
 				errors.New("taken"),
@@ -125,18 +113,23 @@ func EditUser() gin.HandlerFunc {
 				},
 			)
 		}
-		user.Roles = services.GenerateUserRoles(inputUser.RoleIds)
-		user.UpdatedAt = time.Now()
 
-		result, err := userCollection.UpdateOne(ctx, bson.M{"id": objId}, bson.M{"$set": user})
-		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
-
-		//get updated user details
-		var updatedUser models.User
-		if result.MatchedCount == 1 {
-			err := userCollection.FindOne(ctx, bson.M{"id": objId}).Decode(&updatedUser)
-			utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
+		//update the user
+		updatedUser := models.User{
+			Id:         userObjId,
+			Name:       inputUser.Name,
+			Username:   inputUser.Username,
+			Password:   utils.GetSHA256Hash(inputUser.Password),
+			Roles:      services.GenerateUserRoles(services.HandleExistedUserRoles(findedUser, inputUser)),
+			TotpActive: inputUser.TotpActive,
+			Addresses:  findedUser.Addresses,
+			TotpKey:    findedUser.TotpKey,
+			CreatedAt:  findedUser.CreatedAt,
+			UpdatedAt:  time.Now(),
 		}
+
+		_, err = userCollection.UpdateOne(ctx, bson.M{"id": userObjId}, bson.M{"$set": updatedUser})
+		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
 
 		utils.GenerateSuccessOutput(updatedUser, c)
 	}
@@ -166,13 +159,4 @@ func DeleteUser() gin.HandlerFunc {
 
 		utils.GenerateSuccessOutput("User successfully deleted!", c)
 	}
-}
-
-func checkDuplicateUser(username string) bool {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	var user models.User
-	err := userCollection.FindOne(ctx, bson.M{"username": username}).Decode(&user)
-	return err == nil
 }

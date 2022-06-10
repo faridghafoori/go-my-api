@@ -9,14 +9,17 @@
       "type": "go",
       "request": "launch",
       "mode": "auto",
-      "program": "${fileDirname}",
-      "env": {
-        "MONGOURILOCAL": "mongodb://localhost:27017",
-        "MONGODB": "golangAPI",
-        "JWT_ACCESS_SECRET": "jdnfksdmfksd",
-        "JWT_REFRESH_SECRET": "mcmvmkmsdnfsdmfdsjf",
-        "REDIS_DSN": "localhost:6379"
-      }
+      "program": "${fileDirname}"
+      // "env": {
+      //   "MONGOURILOCAL": "mongodb://localhost:27017",
+      //   "MONGODB": "golangAPI",
+      //   "JWT_ACCESS_SECRET": "jdnfksdmfksd",
+      //   "JWT_REFRESH_SECRET": "mcmvmkmsdnfsdmfdsjf",
+      //   "JWT_TOTP_SECRET": "fasdfgadsfkdsahf",
+      //   "REDIS_DSN": "localhost:6379",
+      //   "RUNABLE_PROJECT_URI": "http://localhost:8000",
+      //   "LAUNCH_PROJECT_URI": "localhost:8000"
+      // }
     }
   ]
 }

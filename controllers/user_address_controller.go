@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"gin-mongo-api/models"
+	"gin-mongo-api/services"
 	"gin-mongo-api/utils"
 	"net/http"
 	"time"
@@ -14,14 +15,9 @@ import (
 
 func GetUserAddresses() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		userId := c.Param("userId")
-		defer cancel()
 
-		objId, _ := primitive.ObjectIDFromHex(userId)
-
-		var user models.User
-		err := userCollection.FindOne(ctx, bson.M{"id": objId}).Decode(&user)
+		user, err := services.FetchUser(userId)
 		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
 
 		utils.GenerateSuccessOutput(user.Addresses, c)
@@ -36,8 +32,7 @@ func AddNewAddressToUser() gin.HandlerFunc {
 
 		userObjId, _ := primitive.ObjectIDFromHex(userId)
 
-		var user models.User
-		err := userCollection.FindOne(ctx, bson.M{"id": userObjId}).Decode(&user)
+		user, err := services.FetchUser(userId)
 		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
 
 		//validate the request body
@@ -66,7 +61,7 @@ func AddNewAddressToUser() gin.HandlerFunc {
 			"name":       user.Name,
 			"addresses":  user.Addresses,
 			"username":   user.Username,
-			"password":   utils.GetMD5Hash(user.Password),
+			"password":   utils.GetSHA256Hash(user.Password),
 			"updated_at": time.Now(),
 		}
 
@@ -125,7 +120,7 @@ func EditAddressOfUser() gin.HandlerFunc {
 			"name":       user.Name,
 			"addresses":  user.Addresses,
 			"username":   user.Username,
-			"password":   utils.GetMD5Hash(user.Password),
+			"password":   utils.GetSHA256Hash(user.Password),
 			"updated_at": time.Now(),
 		}
 
@@ -169,7 +164,7 @@ func DeleteAddressOfUser() gin.HandlerFunc {
 			"name":       user.Name,
 			"addresses":  user.Addresses,
 			"username":   user.Username,
-			"password":   utils.GetMD5Hash(user.Password),
+			"password":   utils.GetSHA256Hash(user.Password),
 			"updated_at": time.Now(),
 		}
 

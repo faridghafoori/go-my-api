@@ -12,4 +12,5 @@ type TokenDetails struct {
 type AccessDetails struct {
 	AccessUuid string
 	UserId     string
+	Authorized bool
 }

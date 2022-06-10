@@ -22,7 +22,5 @@ func main() {
 	routes.RoleRoutes(router)
 	routes.EpisodeRoutes(router)
 	routes.IORoutes(router)
-
-	router.Run("localhost:6000")
-
+	router.Run(configs.EnvLaunchProjectUri())
 }

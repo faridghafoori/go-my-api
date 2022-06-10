@@ -7,9 +7,9 @@ import (
 )
 
 type Role struct {
-	Id         primitive.ObjectID `json:"id,omitempty"`
-	Name       string             `json:"name,omitempty" validate:"required"`
-	Descriptor string             `json:"descriptor,omitempty" validate:"required"`
-	CreatedAt  time.Time          `json:"created_at,omitempty"`
-	UpdatedAt  time.Time          `json:"updated_at,omitempty"`
+	Id         primitive.ObjectID
+	Name       string `validate:"required"`
+	Descriptor string `validate:"required"`
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }

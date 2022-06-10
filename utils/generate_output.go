@@ -9,7 +9,7 @@ import (
 
 func GenerateErrorOutput(statusCode int, e error, c *gin.Context, optionalParams ...map[string]interface{}) {
 	if e != nil {
-		var showableMessage string = ErrorMessage
+		var showableMessage string = http.StatusText(statusCode)
 		var showableData interface{} = e.Error()
 		if len(optionalParams) > 0 {
 			if optionalParams[0]["data"] != nil {
@@ -41,8 +41,9 @@ func GenerateSuccessOutput(result interface{}, c *gin.Context, statusCode ...int
 		showableStatucCode,
 		responses.GeneralResponse{
 			Status:  showableStatucCode,
-			Message: SuccessMessage,
+			Message: http.StatusText(showableStatucCode),
 			Data:    result,
 		},
 	)
+	c.Abort()
 }

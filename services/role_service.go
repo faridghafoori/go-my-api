@@ -4,7 +4,6 @@ import (
 	"context"
 	"gin-mongo-api/configs"
 	"gin-mongo-api/models"
-	"log"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -18,7 +17,12 @@ func GenerateUserRoles(roleIds []string) []models.Role {
 	var roles []models.Role
 	ch := make(chan models.Role)
 
-	go FetchRole(roleIds, ch)
+	if roleIds != nil {
+		go FetchRole(roleIds, ch)
+	} else {
+		// normal user
+		go FetchRole([]string{"62a3363d5f766861278f7a0c"}, ch)
+	}
 
 	for l := range ch {
 		roles = append(roles, l)
@@ -36,7 +40,6 @@ func FetchRole(roleIds []string, ch chan models.Role) {
 		var role models.Role
 		err := roleCollection.FindOne(ctx, bson.M{"id": roleObjId}).Decode(&role)
 		if err != nil {
-			log.Println(err)
 			return
 		}
 		ch <- role

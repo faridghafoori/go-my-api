@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"gin-mongo-api/configs"
 	"gin-mongo-api/utils"
 	"io"
 	"net/http"
@@ -16,7 +17,7 @@ func Upload() gin.HandlerFunc {
 		utils.GenerateErrorOutput(http.StatusBadRequest, err, c)
 
 		extention := strings.Split(header.Header["Content-Type"][0], "/")[1]
-		filename := utils.GetMD5Hash(header.Filename) + "." + extention
+		filename := utils.GetSHA256Hash(header.Filename) + "." + extention
 		sise := header.Size
 
 		folderPrefix := filename[:3]
@@ -34,7 +35,7 @@ func Upload() gin.HandlerFunc {
 		_, err = io.Copy(out, file)
 		utils.GenerateErrorOutput(http.StatusBadRequest, err, c)
 
-		filepath := "http://localhost:6000/file/" + folderPrefix + "/" + filename
+		filepath := configs.EnvRunableProjectUri() + "/file/" + folderPrefix + "/" + filename
 
 		utils.GenerateSuccessOutput(
 			map[string]interface{}{

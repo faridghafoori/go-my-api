@@ -49,7 +49,7 @@ func GetRole() gin.HandlerFunc {
 		roleObjId, _ := primitive.ObjectIDFromHex(roleId)
 		var role models.Role
 		err := roleCollection.FindOne(ctx, bson.M{"id": roleObjId}).Decode(&role)
-		utils.GenerateErrorOutput(http.StatusBadRequest, err, c)
+		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
 
 		utils.GenerateSuccessOutput(role, c)
 	}

@@ -1,19 +1,21 @@
 package controllers
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"gin-mongo-api/configs"
 	"gin-mongo-api/models"
+	"gin-mongo-api/services"
 	"gin-mongo-api/utils"
+	"image/png"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
-	"github.com/twinj/uuid"
+	"github.com/pquerna/otp/totp"
 	"go.mongodb.org/mongo-driver/bson"
 )
 
@@ -34,7 +36,7 @@ func Authenticate() gin.HandlerFunc {
 		findError := userCollection.FindOne(ctx, bson.M{"username": inputUser.Username}).Decode(&user)
 		utils.GenerateErrorOutput(http.StatusBadRequest, findError, c)
 
-		inputUser.Password = utils.GetMD5Hash(inputUser.Password)
+		inputUser.Password = utils.GetSHA256Hash(inputUser.Password)
 		if user.Username != inputUser.Username || user.Password != inputUser.Password {
 			utils.GenerateErrorOutput(
 				http.StatusUnauthorized,
@@ -47,32 +49,61 @@ func Authenticate() gin.HandlerFunc {
 			)
 		}
 
-		ts, err := CreateToken(user.Id.Hex())
-		utils.GenerateErrorOutput(http.StatusUnprocessableEntity, err, c)
+		if !user.TotpActive {
+			ts, err := services.CreateToken(user.Id.Hex())
+			utils.GenerateErrorOutput(http.StatusUnprocessableEntity, err, c)
 
-		saveErr := CreateAuth(user.Id.Hex(), ts)
-		utils.GenerateErrorOutput(http.StatusUnprocessableEntity, saveErr, c)
+			saveErr := services.CreateAuth(user.Id.Hex(), ts)
+			utils.GenerateErrorOutput(http.StatusUnprocessableEntity, saveErr, c)
 
-		tokens := map[string]string{
-			"access_token":  ts.AccessToken,
-			"refresh_token": ts.RefreshToken,
+			tokens := map[string]string{
+				"access_token":  ts.AccessToken,
+				"refresh_token": ts.RefreshToken,
+			}
+
+			utils.GenerateSuccessOutput(tokens, c)
+			return
 		}
 
-		utils.GenerateSuccessOutput(tokens, c)
+		ts, err := services.CreateTOTPToken(user.Id.Hex())
+		utils.GenerateErrorOutput(http.StatusUnprocessableEntity, err, c)
+
+		tokens := map[string]string{
+			"token": ts.AccessToken,
+		}
+
+		if user.TotpKey == "" {
+			utils.GenerateErrorOutput(
+				http.StatusUnprocessableEntity,
+				errors.New(""),
+				c,
+				map[string]interface{}{
+					"message": "Your TOTP key is not set",
+					"data":    tokens,
+				},
+			)
+		}
+
+		utils.GenerateSuccessOutput(tokens, c, http.StatusAccepted)
 	}
 }
 
 func Logout() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		au, err := ExtractTokenMetadata(c.Request)
+		au, err := services.ExtractTokenMetadata(c.Request)
 		utils.GenerateErrorOutput(http.StatusUnprocessableEntity, err, c)
 
-		deleted, delErr := DeleteAuth(au.AccessUuid)
+		deleted, delErr := services.DeleteAuth(au.AccessUuid)
 		if delErr != nil || deleted == 0 { //if any goes wrong
 			utils.GenerateErrorOutput(http.StatusUnprocessableEntity, delErr, c)
 		}
 
 		utils.GenerateSuccessOutput("Successfully logged out", c)
+	}
+}
+
+func Register() gin.HandlerFunc {
+	return func(c *gin.Context) {
 	}
 }
 
@@ -95,7 +126,7 @@ func Refresh() gin.HandlerFunc {
 		//if there is an error, the token must have expired
 		utils.GenerateErrorOutput(
 			http.StatusUnauthorized,
-			bindErr,
+			err,
 			c,
 			map[string]interface{}{
 				"data": "Refresh token expired",
@@ -119,37 +150,28 @@ func Refresh() gin.HandlerFunc {
 			}
 			userId := claims["sub"]
 			//Delete the previous Refresh Token
-			deleted, delErr := DeleteAuth(refreshUuid)
-			if delErr != nil || deleted == 0 { //if any goes wrong
+			deleted, delErr := services.DeleteAuth(refreshUuid)
+			// if any goes wrong
+			if delErr != nil || deleted == 0 {
 				utils.GenerateErrorOutput(
 					http.StatusUnauthorized,
-					err,
+					errors.New("Refresh token not valid"),
 					c,
-					map[string]interface{}{
-						"data":    err,
-						"message": utils.UnauthorizedMessage,
-					},
 				)
 			}
 			//Create new pairs of refresh and access tokens
-			ts, createErr := CreateToken(userId.(string))
+			ts, createErr := services.CreateToken(userId.(string))
 			utils.GenerateErrorOutput(
 				http.StatusForbidden,
 				createErr,
 				c,
-				map[string]interface{}{
-					"message": utils.ForbidenMessage,
-				},
 			)
 			//save the tokens metadata to redis
-			saveErr := CreateAuth(userId.(string), ts)
+			saveErr := services.CreateAuth(userId.(string), ts)
 			utils.GenerateErrorOutput(
 				http.StatusForbidden,
 				saveErr,
 				c,
-				map[string]interface{}{
-					"message": utils.ForbidenMessage,
-				},
 			)
 
 			tokens := map[string]string{
@@ -164,154 +186,97 @@ func Refresh() gin.HandlerFunc {
 				errors.New(""),
 				c,
 				map[string]interface{}{
-					"message": utils.UnauthorizedMessage,
-					"data":    "Refresh expired",
+					"data": "Refresh expired",
 				},
 			)
 		}
 	}
 }
 
-func CreateToken(userId string) (*models.TokenDetails, error) {
-	td := &models.TokenDetails{}
-	td.AtExpires = time.Now().Add(time.Hour * 24).Unix()
-	td.AccessUuid = uuid.NewV4().String()
-
-	td.RtExpires = time.Now().Add(time.Hour * 24 * 7).Unix()
-	td.RefreshUuid = uuid.NewV4().String()
-
-	var err error
-	//Creating Access Token
-	atClaims := jwt.MapClaims{}
-	atClaims["authorized"] = true
-	atClaims["access_uuid"] = td.AccessUuid
-	atClaims["sub"] = userId
-	atClaims["exp"] = td.AtExpires
-	atClaims["iss"] = "auth"
-	at := jwt.NewWithClaims(jwt.SigningMethodHS256, atClaims)
-	td.AccessToken, err = at.SignedString([]byte(configs.EnvJWTAcessSecret()))
-	if err != nil {
-		return nil, err
-	}
-	//Creating Refresh Token
-	rtClaims := jwt.MapClaims{}
-	rtClaims["refresh_uuid"] = td.RefreshUuid
-	rtClaims["sub"] = userId
-	rtClaims["exp"] = td.RtExpires
-	atClaims["iss"] = "auth"
-	rt := jwt.NewWithClaims(jwt.SigningMethodHS256, rtClaims)
-	td.RefreshToken, err = rt.SignedString([]byte(configs.EnvJWTRefreshSecret()))
-	if err != nil {
-		return nil, err
-	}
-	return td, nil
-}
-
-func CreateAuth(userid string, td *models.TokenDetails) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	at := time.Unix(td.AtExpires, 0) //converting Unix to UTC(to Time object)
-	rt := time.Unix(td.RtExpires, 0)
-	now := time.Now()
-
-	errAccess := configs.RDB.Set(ctx, td.AccessUuid, userid, at.Sub(now)).Err()
-	if errAccess != nil {
-		return errAccess
-	}
-	errRefresh := configs.RDB.Set(ctx, td.RefreshUuid, userid, rt.Sub(now)).Err()
-	if errRefresh != nil {
-		return errRefresh
-	}
-	return nil
-}
-
-func ExtractToken(r *http.Request) string {
-	bearToken := r.Header.Get("Authorization")
-	//normally Authorization the_token_xxx
-	strArr := strings.Split(bearToken, " ")
-	if len(strArr) == 2 {
-		return strArr[1]
-	}
-	return ""
-}
-
-func VerifyToken(r *http.Request) (*jwt.Token, error) {
-	tokenString := ExtractToken(r)
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		//Make sure that the token method conform to "SigningMethodHMAC"
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return []byte(configs.EnvJWTAcessSecret()), nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return token, nil
-}
-
-func TokenValid(r *http.Request) error {
-	token, err := VerifyToken(r)
-	if err != nil {
-		return err
-	}
-	_, ok := token.Claims.(jwt.MapClaims)
-	if !ok && !token.Valid {
-		return err
-	}
-	return nil
-}
-
-func ExtractTokenMetadata(r *http.Request) (*models.AccessDetails, error) {
-	token, err := VerifyToken(r)
-	if err != nil {
-		return nil, err
-	}
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if ok && token.Valid {
-		accessUuid, ok := claims["access_uuid"].(string)
-		if !ok {
-			return nil, err
-		}
-		return &models.AccessDetails{
-			AccessUuid: accessUuid,
-			UserId:     claims["sub"].(string),
-		}, nil
-	}
-	return nil, err
-}
-
-func FetchAuth(authD *models.AccessDetails) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	userid, err := configs.RDB.Get(ctx, authD.AccessUuid).Result()
-	if err != nil {
-		return "", err
-	}
-	return userid, nil
-}
-
-func DeleteAuth(givenUuid string) (int64, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	deleted, err := configs.RDB.Del(ctx, givenUuid).Result()
-	if err != nil {
-		return 0, err
-	}
-	return deleted, nil
-}
-
-func TokenAuthMiddleware() gin.HandlerFunc {
+func TOTPGenerator() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		err := TokenValid(c.Request)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		AccessDetails, err := services.ExtractTOTPTokenMetadata(c.Request)
+		utils.GenerateErrorOutput(http.StatusUnauthorized, err, c)
+
+		user, err := services.FetchUser(AccessDetails.UserId)
+		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
+
+		key, err := totp.Generate(totp.GenerateOpts{
+			Issuer:      "mygoapi.com",
+			AccountName: user.Username,
+		})
+		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
+		user.TotpKey = key.Secret()
+
+		_, err = userCollection.UpdateOne(ctx, bson.M{"id": user.Id}, bson.M{"$set": user})
+		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
+
+		// Convert TOTP key into a PNG
+		var buf bytes.Buffer
+		img, err := key.Image(200, 200)
+		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
+		png.Encode(&buf, img)
+
+		// display the QR code to the user.
+		qrCodeLink := services.Display(key, buf.Bytes())
+		utils.GenerateSuccessOutput(qrCodeLink, c)
+	}
+}
+
+func VerifyTOTP() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		AccessDetails, err := services.ExtractTOTPTokenMetadata(c.Request)
+		utils.GenerateErrorOutput(http.StatusUnauthorized, err, c)
+
+		user, err := services.FetchUser(AccessDetails.UserId)
+		utils.GenerateErrorOutput(http.StatusInternalServerError, err, c)
+
+		// Now Validate that the user's successfully added the passcode.
+		var verifyTotp models.VerifyTOTP
+		err = c.BindJSON(&verifyTotp)
+		utils.GenerateErrorOutput(http.StatusBadRequest, err, c)
+
+		//use the validator library to validate required fields
+		validationErr := validate.Struct(&verifyTotp)
+		utils.GenerateErrorOutput(http.StatusBadRequest, validationErr, c)
+
+		valid := totp.Validate(verifyTotp.Passcode, user.TotpKey)
+		if valid {
+			ts, err := services.CreateToken(user.Id.Hex())
+			utils.GenerateErrorOutput(http.StatusUnprocessableEntity, err, c)
+
+			saveErr := services.CreateAuth(user.Id.Hex(), ts)
+			utils.GenerateErrorOutput(http.StatusUnprocessableEntity, saveErr, c)
+
+			tokens := map[string]string{
+				"access_token":  ts.AccessToken,
+				"refresh_token": ts.RefreshToken,
+			}
+
+			utils.GenerateSuccessOutput(tokens, c)
+		} else {
+			utils.GenerateErrorOutput(http.StatusNotAcceptable, errors.New("TOTP code was wrong"), c)
+		}
+
+	}
+}
+
+func TokenAuthMiddleware(tokenType ...string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var requestTokenType string
+		if tokenType != nil {
+			requestTokenType = tokenType[0]
+		} else {
+			requestTokenType = ""
+		}
+		err := services.TokenValid(c.Request, requestTokenType)
 		utils.GenerateErrorOutput(
 			http.StatusUnauthorized,
 			err,
 			c,
-			map[string]interface{}{
-				"message": utils.UnauthorizedMessage,
-			},
 		)
 		if err != nil {
 			return

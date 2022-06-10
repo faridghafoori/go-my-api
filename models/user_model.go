@@ -7,20 +7,24 @@ import (
 )
 
 type User struct {
-	Id        primitive.ObjectID `json:"id,omitempty"`
-	Name      string             `json:"name,omitempty" validate:"required"`
-	Username  string             `json:"username,omitempty" validate:"required"`
-	Password  string             `json:"password,omitempty" validate:"required"`
-	Roles     []Role             `json:"roles,omitempty"`
-	Addresses []Address          `json:"addresses,omitempty"`
-	CreatedAt time.Time          `json:"created_at,omitempty"`
-	UpdatedAt time.Time          `json:"updated_at,omitempty"`
+	Id         primitive.ObjectID
+	Name       string
+	Password   string `validate:"required"` // json:"-"
+	Username   string `validate:"required"`
+	TotpActive bool   `validate:"required"`
+	TotpKey    string
+	Roles      []Role
+	Addresses  []Address
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
-type UserWithRoleId struct {
-	Name      string    `json:"name,omitempty" validate:"required"`
-	Username  string    `json:"username,omitempty" validate:"required"`
-	Password  string    `json:"password,omitempty" validate:"required"`
-	RoleIds   []string  `json:"role_ids,omitempty"`
-	Addresses []Address `json:"addresses,omitempty"`
+type UserInputBody struct {
+	Name       string
+	Username   string `validate:"required"`
+	Password   string `validate:"required"`
+	TotpActive bool
+	RoleIds    []string
+	Addresses  []Address
+	TotpKey    string
 }
