@@ -2,8 +2,9 @@ package services
 
 import (
 	"encoding/base32"
-	"gin-mongo-api/configs"
+	"gin-mongo-api/utils"
 	"io/ioutil"
+	"os"
 	"time"
 
 	"github.com/pquerna/otp"
@@ -11,16 +12,12 @@ import (
 )
 
 func Display(key *otp.Key, data []byte) string {
-	// fmt.Printf("Issuer:       %s\n", key.Issuer())
-	// fmt.Printf("Account Name: %s\n", key.AccountName())
-	// fmt.Printf("Secret:       %s\n", key.Secret())
-	// fmt.Println("Writing PNG to qr-code.png....")
-	file := "public/totp_codes/" + key.AccountName() + "-qr-code.png"
-	ioutil.WriteFile(file, data, 0644)
-	link := configs.ENV_RUNABLE_PROJECT_URI() + "/file/totp_codes/" + key.AccountName() + "-qr-code.png"
-	// fmt.Println("")
-	// fmt.Println("Please add your TOTP to your OTP Application now!")
-	// fmt.Println("")
+	fileName := key.AccountName() + "-" + "totp-qr-code"
+	filePath := "public/" + fileName + ".png"
+	ioutil.WriteFile(filePath, data, 0644)
+	fileInLocal, _ := os.Open(filePath)
+	multiPartFile, _ := utils.GetFileHeader(fileInLocal)
+	link := UploadFile("totp-images", "/default", multiPartFile, fileName)
 	return link
 }
 

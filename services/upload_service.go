@@ -4,17 +4,16 @@ import (
 	"context"
 	"gin-mongo-api/configs"
 	"gin-mongo-api/utils"
-	"log"
+	"io"
 	"mime/multipart"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/minio/minio-go/v7"
 )
 
-func UploadFile(c *gin.Context, bucketName string, extention string, file *multipart.FileHeader) string {
+func UploadFile(bucketName string, extention string, file *multipart.FileHeader, customFileName ...string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -36,31 +35,57 @@ func UploadFile(c *gin.Context, bucketName string, extention string, file *multi
 	// }
 
 	// Copy file in local and Upload the file
-	fileExtention := strings.Split(file.Header["Content-Type"][0], "/")[1]
+	var fileExtention string = "png"
+	if file.Header.Get("Content-Type") != "" {
+		fileExtention = strings.Split(file.Header["Content-Type"][0], "/")[1]
+	}
 	fileName := utils.GetMD5Hash(file.Filename) + "." + fileExtention
+	if len(customFileName) > 0 {
+		fileName = customFileName[0] + "." + fileExtention
+	}
 	filePath := "public/" + fileName
+	_ = SaveUploadedFile(file, filePath)
 	fileNameInStorage := utils.GetMD5Hash(file.Filename) + extention
-	_ = c.SaveUploadedFile(file, filePath)
 	// log.Println(err)
 
-	contentType := file.Header["Content-Type"][0]
+	var contentType string = "image/png"
+	if file.Header.Get("Content-Type") != "" {
+		contentType = file.Header["Content-Type"][0]
+	}
 
 	// Upload the zip file with FPutObject
-	_, err = configs.MinioClient.FPutObject(ctx, bucketName, fileNameInStorage, filePath, minio.PutObjectOptions{ContentType: contentType})
-	if err != nil {
-		log.Println(err)
-	}
+	_, _ = configs.MinioClient.FPutObject(ctx, bucketName, fileNameInStorage, filePath, minio.PutObjectOptions{ContentType: contentType})
+	// if err != nil {
+	// 	log.Println(err)
+	// }
 
 	// log.Printf("Successfully uploaded %s of size %d\n", fileName, info.Size)
 
 	// Delete the local file
-	deleteErr := DeleteFile(fileName)
-	if deleteErr != nil {
-		log.Println(deleteErr)
-	}
+	_ = DeleteFile(fileName)
+	// if deleteErr != nil {
+	// 	log.Println(deleteErr)
+	// }
 
 	link := configs.MinioClient.EndpointURL().String() + "/" + bucketName + "/" + fileNameInStorage
 	return link
+}
+
+func SaveUploadedFile(file *multipart.FileHeader, dst string) error {
+	src, err := file.Open()
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, src)
+	return err
 }
 
 func DeleteFile(fileName string) error {

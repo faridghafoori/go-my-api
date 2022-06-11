@@ -73,14 +73,13 @@ func Authenticate() gin.HandlerFunc {
 		}
 
 		if user.TotpKey == "" {
-			utils.GenerateErrorOutput(
-				http.StatusUnprocessableEntity,
-				errors.New(""),
-				c,
+			utils.GenerateSuccessOutput(
 				map[string]interface{}{
-					"message": "Your TOTP key is not set",
+					"message": "Your TOTP key is not set, must be set",
 					"data":    tokens,
 				},
+				c,
+				http.StatusCreated,
 			)
 		}
 

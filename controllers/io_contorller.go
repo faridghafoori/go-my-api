@@ -66,7 +66,7 @@ func UploadToMinio() gin.HandlerFunc {
 
 		var links []string
 		for _, file := range files {
-			link := services.UploadFile(c, bucketName, extention, file)
+			link := services.UploadFile(bucketName, extention, file)
 			links = append(links, link)
 		}
 

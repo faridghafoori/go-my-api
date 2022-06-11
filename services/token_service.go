@@ -15,7 +15,7 @@ import (
 
 func CreateTOTPToken(userId string) (*models.TokenDetails, error) {
 	td := &models.TokenDetails{}
-	td.AtExpires = time.Now().Add(time.Minute * 3).Unix()
+	td.AtExpires = time.Now().Add(time.Minute * 60).Unix()
 	td.AccessUuid = uuid.NewV4().String()
 
 	var err error
