@@ -7,10 +7,16 @@ import (
 )
 
 func EpisodeRoutes(router *gin.Engine) {
-	// All routes related to episodes comes here
-	router.GET("/episodes", controllers.GetEpisodes())
-	router.GET("/episodes/:episodeId", controllers.GetEpisode())
-	router.POST("/episodes", controllers.TokenAuthMiddleware(), controllers.CreateEpisode())
-	router.PUT("/episodes/:episodeId", controllers.TokenAuthMiddleware(), controllers.EditEpisode())
-	router.DELETE("/episodes/:episodeId", controllers.TokenAuthMiddleware(), controllers.DeleteEpisode())
+	episodeController := new(controllers.EpisodeController)
+
+	router.GET("/episodes", episodeController.GetEpisodes())
+	router.GET("/episodes/:episodeId", episodeController.GetEpisode())
+}
+
+func EpisodePrivateRoutes(router *gin.Engine) {
+	episodeController := new(controllers.EpisodeController)
+
+	router.POST("/episodes", episodeController.CreateEpisode())
+	router.PUT("/episodes/:episodeId", episodeController.EditEpisode())
+	router.DELETE("/episodes/:episodeId", episodeController.DeleteEpisode())
 }

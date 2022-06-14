@@ -13,7 +13,9 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-func GetUserAddresses() gin.HandlerFunc {
+type AddressController struct{}
+
+func (a AddressController) GetUserAddresses() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userId := c.Param("userId")
 
@@ -24,7 +26,7 @@ func GetUserAddresses() gin.HandlerFunc {
 	}
 }
 
-func AddNewAddressToUser() gin.HandlerFunc {
+func (a AddressController) AddNewAddressToUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		userId := c.Param("userId")
@@ -74,7 +76,7 @@ func AddNewAddressToUser() gin.HandlerFunc {
 	}
 }
 
-func EditAddressOfUser() gin.HandlerFunc {
+func (a AddressController) EditAddressOfUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		userId := c.Param("userId")
@@ -133,7 +135,7 @@ func EditAddressOfUser() gin.HandlerFunc {
 	}
 }
 
-func DeleteAddressOfUser() gin.HandlerFunc {
+func (a AddressController) DeleteAddressOfUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		userId := c.Param("userId")

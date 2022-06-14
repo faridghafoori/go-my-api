@@ -63,22 +63,6 @@ func ENV_JWT_REFRESH_SECRET() string {
 	return os.Getenv("JWT_REFRESH_SECRET")
 }
 
-func ENV_RUNABLE_PROJECT_URI() string {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
-	return os.Getenv("RUNABLE_PROJECT_URI")
-}
-
-func ENV_LAUNCH_PROJECT_URI() string {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
-	return os.Getenv("LAUNCH_PROJECT_URI")
-}
-
 func ENV_MINIO_ENDPOINT() string {
 	err := godotenv.Load()
 	if err != nil {
@@ -101,4 +85,36 @@ func ENV_MINIO_SECRET_KEY() string {
 		log.Fatal("Error loading .env file")
 	}
 	return os.Getenv("MINIO_SECRET_KEY")
+}
+
+func ENV_LAUNCH_PUBLIC_URI() string {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+	return os.Getenv("LAUNCH_PUBLIC_URI")
+}
+
+func ENV_LAUNCH_AUTH_URI() string {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+	return os.Getenv("LAUNCH_AUTH_URI")
+}
+
+func ENV_LAUNCH_ADMIN_URI() string {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+	return os.Getenv("LAUNCH_ADMIN_URI")
+}
+
+func ENV_LAUNCH_UPLOAD_URI() string {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+	return os.Getenv("LAUNCH_UPLOAD_URI")
 }

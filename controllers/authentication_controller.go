@@ -19,7 +19,9 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
-func Authenticate() gin.HandlerFunc {
+type AuthenticateController struct{}
+
+func (a AuthenticateController) Authenticate() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -87,7 +89,7 @@ func Authenticate() gin.HandlerFunc {
 	}
 }
 
-func Logout() gin.HandlerFunc {
+func (a AuthenticateController) Logout() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		au, err := services.ExtractTokenMetadata(c.Request)
 		utils.GenerateErrorOutput(http.StatusUnprocessableEntity, err, c)
@@ -101,12 +103,12 @@ func Logout() gin.HandlerFunc {
 	}
 }
 
-func Register() gin.HandlerFunc {
+func (a AuthenticateController) Register() gin.HandlerFunc {
 	return func(c *gin.Context) {
 	}
 }
 
-func Refresh() gin.HandlerFunc {
+func (a AuthenticateController) Refresh() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		mapToken := map[string]string{}
 		bindErr := c.ShouldBindJSON(&mapToken)
@@ -192,7 +194,7 @@ func Refresh() gin.HandlerFunc {
 	}
 }
 
-func TOTPGenerator() gin.HandlerFunc {
+func (a AuthenticateController) TOTPGenerator() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -225,7 +227,7 @@ func TOTPGenerator() gin.HandlerFunc {
 	}
 }
 
-func VerifyTOTP() gin.HandlerFunc {
+func (a AuthenticateController) VerifyTOTP() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		AccessDetails, err := services.ExtractTOTPTokenMetadata(c.Request)
 		utils.GenerateErrorOutput(http.StatusUnauthorized, err, c)
@@ -260,26 +262,5 @@ func VerifyTOTP() gin.HandlerFunc {
 			utils.GenerateErrorOutput(http.StatusNotAcceptable, errors.New("TOTP code was wrong"), c)
 		}
 
-	}
-}
-
-func TokenAuthMiddleware(tokenType ...string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		var requestTokenType string
-		if tokenType != nil {
-			requestTokenType = tokenType[0]
-		} else {
-			requestTokenType = ""
-		}
-		err := services.TokenValid(c.Request, requestTokenType)
-		utils.GenerateErrorOutput(
-			http.StatusUnauthorized,
-			err,
-			c,
-		)
-		if err != nil {
-			return
-		}
-		c.Next()
 	}
 }

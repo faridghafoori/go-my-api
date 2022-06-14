@@ -16,9 +16,11 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
+type UserController struct{}
+
 var userCollection *mongo.Collection = configs.GetCollection(configs.DB, "users")
 
-func GetUsers() gin.HandlerFunc {
+func (u UserController) GetUsers() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		var users []models.User
@@ -40,7 +42,7 @@ func GetUsers() gin.HandlerFunc {
 	}
 }
 
-func GetUser() gin.HandlerFunc {
+func (u UserController) GetUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userId := c.Param("userId")
 
@@ -51,7 +53,7 @@ func GetUser() gin.HandlerFunc {
 	}
 }
 
-func CreateUser() gin.HandlerFunc {
+func (u UserController) CreateUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -82,7 +84,7 @@ func CreateUser() gin.HandlerFunc {
 	}
 }
 
-func EditUser() gin.HandlerFunc {
+func (u UserController) EditUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		userId := c.Param("userId")
@@ -135,7 +137,7 @@ func EditUser() gin.HandlerFunc {
 	}
 }
 
-func DeleteUser() gin.HandlerFunc {
+func (u UserController) DeleteUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		userId := c.Param("userId")

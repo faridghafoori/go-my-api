@@ -15,9 +15,11 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
+type EpisodeController struct{}
+
 var episodeCollection *mongo.Collection = configs.GetCollection(configs.DB, "episodes")
 
-func GetEpisodes() gin.HandlerFunc {
+func (e EpisodeController) GetEpisodes() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -38,7 +40,7 @@ func GetEpisodes() gin.HandlerFunc {
 	}
 }
 
-func GetEpisode() gin.HandlerFunc {
+func (e EpisodeController) GetEpisode() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		episodeId := c.Param("episodeId")
@@ -53,7 +55,7 @@ func GetEpisode() gin.HandlerFunc {
 	}
 }
 
-func CreateEpisode() gin.HandlerFunc {
+func (e EpisodeController) CreateEpisode() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -85,7 +87,7 @@ func CreateEpisode() gin.HandlerFunc {
 	}
 }
 
-func EditEpisode() gin.HandlerFunc {
+func (e EpisodeController) EditEpisode() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		episodeId := c.Param("episodeId")
@@ -112,7 +114,7 @@ func EditEpisode() gin.HandlerFunc {
 	}
 }
 
-func DeleteEpisode() gin.HandlerFunc {
+func (e EpisodeController) DeleteEpisode() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		episodeId := c.Param("episodeId")

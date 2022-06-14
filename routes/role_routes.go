@@ -7,9 +7,9 @@ import (
 )
 
 func RoleRoutes(router *gin.Engine) {
-	router.GET("/roles", controllers.TokenAuthMiddleware(), controllers.GetRoles())
-	router.GET("/roles/:roleId", controllers.TokenAuthMiddleware(), controllers.GetRole())
-	router.POST("/roles", controllers.TokenAuthMiddleware(), controllers.CreateRole())
-	router.PUT("/roles/:roleId", controllers.TokenAuthMiddleware(), controllers.EditRole())
-	router.DELETE("/roles/:roleId", controllers.TokenAuthMiddleware(), controllers.DeleteRole())
+	router.GET("/roles", controllers.GetRoles())
+	router.GET("/roles/:roleId", controllers.GetRole())
+	router.POST("/roles", controllers.CreateRole())
+	router.PUT("/roles/:roleId", controllers.EditRole())
+	router.DELETE("/roles/:roleId", controllers.DeleteRole())
 }
